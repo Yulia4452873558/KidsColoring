@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Весёлые раскраски</string>
+    <string name="saved">Рисунок сохранён в галерею</string>
+    <string name="save_failed">Не получилось сохранить рисунок</string>
+</resources>
