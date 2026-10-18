@@ -6,7 +6,8 @@ import androidx.compose.ui.graphics.Color
 /**
  * Тема раскрасок. Картинки темы берутся из двух мест:
  *  1) папка app/src/main/assets/coloring/<id>/ — сюда кладите сгенерированные картинки
- *     (png, jpg или webp; порядок — по имени файла, поэтому удобно называть 001.png, 002.png…);
+ *     (png, jpg или webp; порядок — по имени файла, поэтому удобно называть 001.png, 002.png…;
+ *     файлы с именем на «top_» идут самыми первыми, раньше встроенных картинок);
  *  2) встроенные картинки, нарисованные кодом ([builtIn] — их id из VectorPages).
  * Тема без единой картинки на главном экране не показывается.
  */
@@ -19,7 +20,7 @@ class ColoringTheme(
 )
 
 val Themes: List<ColoringTheme> = listOf(
-    ColoringTheme("animals", "Животные", "🐱", Color(0xFFFFA726), listOf("cat")),
+    ColoringTheme("animals", "Животные", "🐱", Color(0xFFFFA726)),
     ColoringTheme("farm", "Ферма", "🐮", Color(0xFF8D6E63), listOf("chick")),
     ColoringTheme("sea", "Морской мир", "🐠", Color(0xFF29B6F6), listOf("fish")),
     ColoringTheme("dinosaurs", "Динозавры", "🦕", Color(0xFF66BB6A), listOf("dino")),
@@ -57,7 +58,9 @@ object Catalog {
                 ColoringPage(id = "${theme.id}/${name.substringBeforeLast('.')}", assetPath = "$folder/$name")
             }
         val builtIn = theme.builtIn.mapNotNull { id -> VectorPages.firstOrNull { it.id == id } }
-        return builtIn + fromAssets
+        // Файлы с именем на «top_» показываются самыми первыми — даже раньше встроенных картинок
+        val (top, rest) = fromAssets.partition { it.assetPath?.substringAfterLast('/')?.startsWith("top_") == true }
+        return top + builtIn + rest
     }
 }
 

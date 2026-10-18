@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import ru.raskraska.kids.ads.findActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -38,7 +40,18 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
         }
+        Music.init(this)
         setContent { MaterialTheme { App() } }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Music.onResume(this)
+    }
+
+    override fun onPause() {
+        Music.onPause()
+        super.onPause()
     }
 }
 
@@ -56,9 +69,16 @@ private data class Route(
 @Composable
 fun App() {
     val context = LocalContext.current.applicationContext
+    val activity = LocalContext.current.findActivity()
     var splashDone by rememberSaveable { mutableStateOf(false) }
     var themeId by rememberSaveable { mutableStateOf<String?>(null) }
     var pageId by rememberSaveable { mutableStateOf<String?>(null) }
+    // выход из категории в главное меню (кнопкой «назад» и системной «назад»):
+    // каждый раз показываем межстраничную рекламу
+    val leaveCategory: () -> Unit = {
+        themeId = null
+        (context as? KidsApp)?.ads?.showInterstitial(activity)
+    }
 
     val theme = Themes.firstOrNull { it.id == themeId }
     val page = if (theme != null && pageId != null) {
@@ -69,7 +89,7 @@ fun App() {
     val route = Route(splash = !splashDone, theme = theme, page = page)
 
     BackHandler(enabled = splashDone && theme != null) {
-        if (pageId != null) pageId = null else themeId = null
+        if (pageId != null) pageId = null else leaveCategory()
     }
 
     Crossfade(targetState = route, animationSpec = tween(450), label = "screens") { r ->
@@ -78,13 +98,9 @@ fun App() {
         } else {
             // Яркий фон на экранах выбора, спокойный — на экране рисования
             when {
-                r.theme == null -> BrightBackground(RainbowBackground)
+                r.theme == null -> HomeBackground()
                 r.page == null -> BrightBackground(themeBackground(r.theme))
-                else -> Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(listOf(AppBackground, Color(0xFFFFF1F7))))
-                )
+                else -> ThemeSceneBackground(sceneFor(r.theme.id))
             }
             Box(
                 Modifier
@@ -95,10 +111,12 @@ fun App() {
                     r.theme == null -> ThemesScreen(onOpen = { themeId = it.id })
                     r.page == null -> PagesScreen(
                         theme = r.theme,
-                        onBack = { themeId = null },
+                        onBack = leaveCategory,
                         onOpen = { pageId = it.id }
                     )
-                    else -> ColoringScreen(page = r.page, onBack = { pageId = null })
+                    else -> CompositionLocalProvider(LocalAccent provides sceneFor(r.theme.id).accent) {
+                        ColoringScreen(page = r.page, onBack = { pageId = null })
+                    }
                 }
             }
         }

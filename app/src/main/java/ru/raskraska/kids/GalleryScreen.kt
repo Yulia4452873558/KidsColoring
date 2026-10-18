@@ -60,108 +60,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-// ---------- Главный экран: выбор темы ----------
-
-@Composable
-fun ThemesScreen(onOpen: (ColoringTheme) -> Unit) {
-    val context = LocalContext.current.applicationContext
-    val themes = remember {
-        Themes.map { it to Catalog.pages(context, it).size }.filter { it.second > 0 }
-    }
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.padding(start = 20.dp, top = 12.dp, end = 20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("🎨", fontSize = 32.sp)
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = "Что будем раскрашивать?",
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
-                style = TextStyle(shadow = Shadow(Color(0x66000000), Offset(0f, 4f), 8f))
-            )
-        }
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(160.dp),
-            contentPadding = PaddingValues(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(themes, key = { it.first.id }) { (theme, count) ->
-                ThemeCard(theme, count) { onOpen(theme) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ThemeCard(theme: ColoringTheme, count: Int, onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.93f else 1f, label = "press")
-    val shape = RoundedCornerShape(28.dp)
-    Box(
-        Modifier
-            .aspectRatio(1.2f)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .shadow(8.dp, shape)
-            .clip(shape)
-            .background(Brush.linearGradient(listOf(lerp(theme.color, Color.White, 0.35f), theme.color)))
-            .border(4.dp, Color.White, shape)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-    ) {
-        ComposeCanvas(Modifier.fillMaxSize()) {
-            drawCircle(
-                Color.White.copy(alpha = 0.2f), size.minDimension * 0.5f,
-                Offset(size.width * 0.92f, size.height * 0.08f)
-            )
-            drawCircle(
-                Color.White.copy(alpha = 0.14f), size.minDimension * 0.3f,
-                Offset(size.width * 0.04f, size.height * 0.96f)
-            )
-        }
-        Box(
-            Modifier
-                .align(Alignment.Center)
-                .offset(y = (-16).dp)
-                .size(84.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.35f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(theme.emoji, fontSize = 50.sp)
-        }
-        Column(
-            Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Text(
-                text = theme.title,
-                color = Color.White,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.ExtraBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(shadow = Shadow(Color(0x66000000), Offset(0f, 3f), 6f))
-            )
-            Text(
-                text = picturesLabel(count),
-                color = Color.White.copy(alpha = 0.92f),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
 // ---------- Экран темы: картинки ----------
 
 @Composable
@@ -170,20 +68,10 @@ fun PagesScreen(theme: ColoringTheme, onBack: () -> Unit, onOpen: (ColoringPage)
     val pages = remember(theme.id) { Catalog.pages(context, theme) }
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.padding(start = 16.dp, top = 10.dp, end = 16.dp),
+            Modifier.fillMaxWidth().padding(start = 16.dp, top = 10.dp, end = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                Modifier
-                    .size(52.dp)
-                    .shadow(4.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .clickable(onClick = onBack),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("⬅", fontSize = 24.sp, color = Violet)
-            }
+            BackButton(onClick = onBack)
             Spacer(Modifier.width(14.dp))
             Text(theme.emoji, fontSize = 30.sp)
             Spacer(Modifier.width(8.dp))
@@ -194,6 +82,8 @@ fun PagesScreen(theme: ColoringTheme, onBack: () -> Unit, onOpen: (ColoringPage)
                 fontWeight = FontWeight.Black,
                 style = TextStyle(shadow = Shadow(Color(0x66000000), Offset(0f, 4f), 8f))
             )
+            Spacer(Modifier.weight(1f))
+            MusicButton()
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(140.dp),

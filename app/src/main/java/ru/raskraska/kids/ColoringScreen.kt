@@ -39,9 +39,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -63,6 +67,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import ru.raskraska.kids.ads.afterRewarded
+import ru.raskraska.kids.ads.findActivity
 import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -71,6 +77,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
     val context = LocalContext.current.applicationContext
+    val activity = LocalContext.current.findActivity()
+    val ads = (context as? KidsApp)?.ads
 
     // Холст создаётся в фоне: рисуем контур и подгружаем незаконченный рисунок
     val loaded by produceState<ColoringState?>(null, page.id) {
@@ -81,7 +89,7 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
     val state = loaded
     if (state == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Violet)
+            CircularProgressIndicator(color = LocalAccent.current)
         }
         return
     }
@@ -89,6 +97,7 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
     var tool by rememberSaveable { mutableStateOf(Tool.FILL) }
     var colorArgb by rememberSaveable { mutableIntStateOf(0xFFF44336.toInt()) }
     var showPicker by remember { mutableStateOf(false) }
+    var askSave by remember { mutableStateOf(false) }
     val color = Color(colorArgb)
     val scope = rememberCoroutineScope()
 
@@ -123,13 +132,14 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
 
     val canvas: @Composable (Modifier) -> Unit = { modifier ->
         Box(modifier, contentAlignment = Alignment.Center) {
-            val shape = RoundedCornerShape(16.dp)
+            val shape = RoundedCornerShape(22.dp)
             Box(
                 Modifier
                     .aspectRatio(1f)
+                    .shadow(10.dp, shape)
                     .clip(shape)
                     .background(Color.White)
-                    .border(4.dp, Violet, shape)
+                    .border(6.dp, LocalAccent.current, shape)
             ) {
                 DrawingCanvas(state, tool, colorArgb)
             }
@@ -137,53 +147,8 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
     }
     val undoAlpha = if (state.canUndo) 1f else 0.4f
 
-    // Экран вертикальный, если высота больше ширины
-    val configuration = LocalConfiguration.current
-    val portrait = configuration.screenHeightDp > configuration.screenWidthDp
     Box(Modifier.fillMaxSize()) {
-        if (portrait) {
-            // ---------- Вертикально: кнопки сверху, холст, инструменты, палитра снизу ----------
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ActionButton("🏠", Modifier.width(64.dp).fillMaxHeight(), onClick = onBack)
-                    Spacer(Modifier.weight(1f))
-                    ActionButton("↩", Modifier.width(64.dp).fillMaxHeight().alpha(undoAlpha), onClick = { state.undo() })
-                    ActionButton("🗑", Modifier.width(64.dp).fillMaxHeight(), onClick = { state.clear() })
-                    ActionButton("💾", Modifier.width(64.dp).fillMaxHeight(), onClick = { save() })
-                }
-                canvas(Modifier.weight(1f).fillMaxWidth())
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(64.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    for (t in Tool.entries) {
-                        ToolButton(t, color, t == tool, Modifier.weight(1f).fillMaxHeight()) { tool = t }
-                    }
-                }
-                PaletteStrip(
-                    selected = color,
-                    horizontal = true,
-                    onPick = ::pickColor,
-                    onCustom = { showPicker = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(184.dp)
-                )
-            }
-        } else {
-            // ---------- Горизонтально: инструменты слева, холст в центре, палитра справа ----------
+        run {
             Row(
                 Modifier
                     .fillMaxSize()
@@ -192,8 +157,10 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
             ) {
                 Column(
                     Modifier
-                        .width(72.dp)
-                        .fillMaxHeight(),
+                        .width(80.dp)
+                        .fillMaxHeight()
+                        .then(panel())
+                        .padding(5.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     ActionButton("🏠", Modifier.weight(1f).fillMaxWidth(), onClick = onBack)
@@ -216,7 +183,7 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
                     ) {
                         ActionButton("↩", Modifier.weight(1f).fillMaxHeight().alpha(undoAlpha), onClick = { state.undo() })
                         ActionButton("🗑", Modifier.weight(1f).fillMaxHeight(), onClick = { state.clear() })
-                        ActionButton("💾", Modifier.weight(1f).fillMaxHeight(), onClick = { save() })
+                        ActionButton("💾", Modifier.weight(1f).fillMaxHeight(), onClick = { askSave = true })
                     }
                     PaletteStrip(
                         selected = color,
@@ -230,6 +197,18 @@ fun ColoringScreen(page: ColoringPage, onBack: () -> Unit) {
                 }
             }
         }
+    }
+
+    if (askSave) {
+        WatchAdDialog(
+            title = "Посмотри рекламу,\nчтобы сохранить рисунок",
+            subtitle = "Рисунок появится в галерее телефона",
+            onWatch = {
+                askSave = false
+                ads.afterRewarded(activity) { save() }
+            },
+            onDismiss = { askSave = false }
+        )
     }
 
     if (showPicker) {
@@ -293,12 +272,13 @@ private fun DrawingCanvas(state: ColoringState, tool: Tool, color: Int) {
 private fun ActionButton(symbol: String, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier
-            .clip(RoundedCornerShape(14.dp))
+            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(symbol, fontSize = 22.sp, color = Violet)
+        Text(symbol, fontSize = 24.sp, color = LocalAccent.current)
     }
 }
 
@@ -308,8 +288,8 @@ private fun ToolButton(tool: Tool, color: Color, selected: Boolean, modifier: Mo
     Box(
         modifier
             .clip(shape)
-            .background(if (selected) Color.White else VioletLight)
-            .border(if (selected) 4.dp else 0.dp, if (selected) Violet else Color.Transparent, shape)
+            .background(if (selected) Color.White else LocalAccent.current.copy(alpha = 0.12f))
+            .border(if (selected) 4.dp else 0.dp, if (selected) LocalAccent.current else Color.Transparent, shape)
             .clickable(onClick = onClick)
             .padding(6.dp)
     ) {
@@ -394,6 +374,80 @@ private fun DrawScope.drawToolIcon(tool: Tool, color: Color) {
                     )
                 }
                 Tool.FILL -> Unit
+            }
+        }
+    }
+}
+
+/** Полупрозрачная белая подложка под кнопки и палитру — фон темы виден, но кнопки читаются. */
+@Composable
+private fun panel(): Modifier {
+    val shape = RoundedCornerShape(22.dp)
+    return Modifier
+        .shadow(8.dp, shape)
+        .clip(shape)
+        .background(Color.White.copy(alpha = 0.85f))
+}
+
+/** Небольшое окно «Посмотри рекламу, чтобы…» перед рекламой с вознаграждением. */
+@Composable
+private fun WatchAdDialog(title: String, subtitle: String, onWatch: () -> Unit, onDismiss: () -> Unit) {
+    val accent = LocalAccent.current
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        val shape = RoundedCornerShape(28.dp)
+        Column(
+            Modifier
+                .width(300.dp)
+                .shadow(16.dp, shape)
+                .clip(shape)
+                .background(Color.White)
+                .border(4.dp, accent, shape)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("🎬", fontSize = 44.sp)
+            Text(
+                title,
+                fontFamily = Nunito,
+                fontWeight = FontWeight.Black,
+                fontSize = 19.sp,
+                lineHeight = 23.sp,
+                color = Color(0xFF4A3A6B),
+                textAlign = TextAlign.Center
+            )
+            Text(
+                subtitle,
+                fontFamily = Nunito,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 13.sp,
+                color = Color(0xFF8A7FA3),
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(2.dp))
+            val pill = RoundedCornerShape(50)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .shadow(6.dp, pill)
+                    .clip(pill)
+                    .background(Brush.verticalGradient(listOf(lerp(accent, Color.White, 0.25f), accent)))
+                    .clickable(onClick = onWatch),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("▶  Смотреть", color = Color.White, fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 20.sp)
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .clip(pill)
+                    .background(Color(0xFFF1EEF7))
+                    .clickable(onClick = onDismiss),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Не сейчас", color = Color(0xFF8A7FA3), fontFamily = Nunito, fontWeight = FontWeight.Black, fontSize = 16.sp)
             }
         }
     }

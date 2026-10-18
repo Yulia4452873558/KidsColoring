@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -118,8 +119,9 @@ fun PaletteStrip(
     }
     Box(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(VioletLight)
+            .shadow(8.dp, RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.White.copy(alpha = 0.88f))
             .padding(4.dp)
     ) {
         if (horizontal) {
@@ -136,6 +138,7 @@ fun PaletteStrip(
 
 @Composable
 private fun ColorDot(color: Color, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val accent = LocalAccent.current
     Box(
         modifier
             .clickable(
@@ -149,7 +152,7 @@ private fun ColorDot(color: Color, selected: Boolean, modifier: Modifier, onClic
                 drawCircle(Color(0x33000000), r, style = Stroke(width = 1.dp.toPx()))
                 if (selected) {
                     drawCircle(Color.White, r - 3.dp.toPx(), style = Stroke(width = 3.dp.toPx()))
-                    drawCircle(Violet, r, style = Stroke(width = 2.dp.toPx()))
+                    drawCircle(accent, r, style = Stroke(width = 3.dp.toPx()))
                 }
             }
     )
